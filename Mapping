@@ -1,0 +1,100 @@
+{
+ "200004810-tulipsrds" : {
+   "aliases" : {},
+   "mappings" :  {
+     "properties" : {
+        "refcd" : {
+          "type":"text",
+          "fields":{
+            "keyword":{
+              "type":"keyword",
+              "ignore_above" : 256
+            }
+          },
+          "analyzer":"like_analyzer"
+        },
+        "refid" : {
+             "properties" : {
+              "reftypename" : {
+                    "type" : "text"
+              },
+              "reftypedesc" : {
+                    "type" : "text"
+              }
+            }
+         },
+         "refcddesc" : {
+              "properties" : {
+               "desc" : {
+                   "type":"text",
+                   "fields":{
+                     "keyword":{
+                       "type":"keyword",
+                       "ignore_above" : 256
+                     }
+                   },
+                   "analyzer":"desc_analyzer",
+                   "search_analyzer":"standard"
+               },
+               "location" : {
+                  "type" : "geo_point"
+               }
+             }
+          },
+        "locale" : {
+             "type" : "text"
+          },
+        "contextcd" : {
+             "type" : "text"
+          },
+        "createdby" : {
+             "type" : "text"
+          },
+        "lastmodifiedby" : {
+             "type" : "text"
+          },
+        "active" : {
+             "type" : "text"
+          },
+        "score" : {
+             "type" : "text"
+          }
+      }
+   },
+    "settings":{
+        "analysis":{
+          "tokenizer": {
+            "ngram_tokenizer": {
+               "type": "nGram",
+               "min_gram": 3,
+               "max_gram": 3
+            }
+         },
+          "filter":{
+            "english_stemmer":{
+               "type":"stemmer",
+               "stopwords":"english"
+            },
+            "english_stop":{
+               "type":"stop",
+               "stopwords":"_english_"
+            }
+          },
+          "analyzer":{
+            "like_analyzer":{
+              "type":"custom",
+              "tokenizer": "ngram_tokenizer"
+            },
+            "desc_analyzer":{
+               "type":"custom",
+               "tokenizer":"whitespace",
+               "filter":[
+                  "lowercase",
+                  "english_stop"
+               ]
+            }
+         }
+      }
+   }
+  }
+}
