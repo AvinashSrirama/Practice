@@ -23,6 +23,50 @@ curl -XGET "localhost:9200/refcd/_search?pretty" -H 'Content-Type: application/j
 }
 '
 
+Response: 
+{
+  "took" : 4,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 0.9808291,
+    "hits" : [
+      {
+        "_index" : "refcd",
+        "_type" : "_doc",
+        "_id" : "RYAE_nIBsjbSbYH25z2Q",
+        "_score" : 0.9808291,
+        "_source" : {
+          "refcd" : "PHX",
+          "refid" : {
+            "reftypename" : "CityCd",
+            "reftypedesc" : "City Code"
+          },
+          "refcddesc" : {
+            "desc" : "Phoenix City",
+            "location" : "12.456,72.675"
+          },
+          "locale" : "en_US",
+          "contextcd" : "Sabre",
+          "createdby" : "asrir5",
+          "lastmodifiedby" : "asrir5",
+          "active" : "Y",
+          "score" : "4"
+        }
+      }
+    ]
+  }
+}
+
 curl -XGET "localhost:9200/refcd/_search?pretty" -H 'Content-Type: application/json' -d'
 {
  "query" : {
@@ -44,5 +88,97 @@ curl -XGET "localhost:9200/refcd/_search?pretty" -H 'Content-Type: application/j
   }
 }
 '
+
+Response:
+
+{
+  "took" : 30,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 3,
+      "relation" : "eq"
+    },
+    "max_score" : 0.13353139,
+    "hits" : [
+      {
+        "_index" : "refcd",
+        "_type" : "_doc",
+        "_id" : "RIAE_nIBsjbSbYH25z2Q",
+        "_score" : 0.13353139,
+        "_source" : {
+          "refcd" : "CHG",
+          "refid" : {
+            "reftypename" : "CityCd",
+            "reftypedesc" : "City Code"
+          },
+          "refcddesc" : {
+            "desc" : "Chicago City",
+            "location" : "13.456,77.675"
+          },
+          "locale" : "en_US",
+          "contextcd" : "Sabre",
+          "createdby" : "asrir5",
+          "lastmodifiedby" : "asrir5",
+          "active" : "Y",
+          "score" : "4"
+        }
+      },
+      {
+        "_index" : "refcd",
+        "_type" : "_doc",
+        "_id" : "RYAE_nIBsjbSbYH25z2Q",
+        "_score" : 0.13353139,
+        "_source" : {
+          "refcd" : "PHX",
+          "refid" : {
+            "reftypename" : "CityCd",
+            "reftypedesc" : "City Code"
+          },
+          "refcddesc" : {
+            "desc" : "Phoenix City",
+            "location" : "12.456,72.675"
+          },
+          "locale" : "en_US",
+          "contextcd" : "Sabre",
+          "createdby" : "asrir5",
+          "lastmodifiedby" : "asrir5",
+          "active" : "Y",
+          "score" : "4"
+        }
+      },
+      {
+        "_index" : "refcd",
+        "_type" : "_doc",
+        "_id" : "RoAE_nIBsjbSbYH25z2Q",
+        "_score" : 0.13353139,
+        "_source" : {
+          "refcd" : "WHL",
+          "refid" : {
+            "reftypename" : "CityCd",
+            "reftypedesc" : "City Code"
+          },
+          "refcddesc" : {
+            "desc" : "Wheeling City",
+            "location" : "12.456,72.675"
+          },
+          "locale" : "en_US",
+          "contextcd" : "Sabre",
+          "createdby" : "asrir5",
+          "lastmodifiedby" : "asrir5",
+          "active" : "Y",
+          "score" : "4"
+        }
+      }
+    ]
+  }
+}
+
 
 curl -XGET  "localhost:9200/refcd/_termvectors/Q4D7_XIBsjbSbYH2dD1B?fields=refcddesc.desc"
