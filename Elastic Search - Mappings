@@ -1,0 +1,362 @@
+Mappings can only be created during Index creation after wards we can only modify mappings.
+
+By default all fields in a document are detected as strings by elastic search. Inorder to be detected by actual data type we should tell elastic search by activating "numeric_detection".
+
+curl -XPUT 'localhost:9200/my_index?pretty' -H 'Content-Type: application/json' -d'
+{
+  "mappings" : {
+        "numeric_detection" : true
+  }
+}
+'
+
+curl -XGET 'localhost:9200/my_index/my_type/_mapping?&pretty'
+
+Setup explicit Mappings - for many fields at a time
+
+curl -XPUT 'localhost:9200/books?pretty' -H 'Content-Type: application/json' -d @customer1.json
+customer1.Json
+{
+ "settings" : {
+   "number_of_shards" : 1,
+   "number_of_replicas" : 0
+ },
+ "dynamic" : "strict", ----->true/false/strict
+ "mappings" :  {
+     "properties" : {
+        "title" : { "type" : "text" },
+        "author" : { "type" : "text" },
+        "available" : { "type" : "boolean" },
+        "pages" : { "type" : "integer" },
+        "cost" : { "type" : "float" },
+        "published" : {
+            "type" : "date",
+            "format" : "YYYY-MM-DD"
+        }
+     }
+ }
+}
+
+curl -XGET 'localhost:9200/books/_mapping?&pretty'
+curl -XDELETE 'localhost:9200/books?pretty'
+
+***************************************************************************************************************************************
+Managing Relational Content
+***************************************************************************************************************************************
+
+Data can be stored in multiple ways.
+
+Blog
+{
+ "title" : "FanFiction",
+ "date" : "2020-06-23",
+ "user" : 123
+ }
+
+ User
+{
+ "id" : 123,
+ "name" : "Avinash"
+}
+
+1) Application join
+   To get all blogs for a particular user, In application join we use first fetch user id and then fetch blog with this user id.
+   This is useful of applications where data is not frequently change. We can also cache the data.
+   This is not using elastic search effectively.
+***************************************************************************************************************************************
+2) Denormalizing  data
+  Data is Denormalized and stored redundantly in a multi field.
+  This will make retrieval faster.Additional disk space will be used though.
+
+
+blogs.json
+{
+ "title" : "Fanfictions",
+ "date" : "2020-06-23",
+ "user" : {
+     "id" : "1",
+     "name" : "Avinash"
+     }
+}
+
+curl -XPOST 'localhost:9200/index_posts/blogs/1?pretty' -H 'Content-Type: application/json' -d @blogs.json
+
+curl -XGET 'localhost:9200/index_posts/blogs/_search?pretty' -H 'Content-Type: application/json' -d'
+{
+ "query" : {
+   "match" : { "user.name" : "Avinash" }
+ }
+}
+'
+***************************************************************************************************************************************
+3) Nested Objects
+  When we store data as below, ES will flatten the books array into single object. When we search for Publisher by penguin it will return both.
+  We should specify books as "nested" in mappings to overcome this problem.
+
+nested.Json
+{
+  "name" : "John Green",
+  "books" : [
+    {
+      "name" : "The Fault in our Stars",
+      "genre" : "Romance",
+      "publisher" : "Penguin"
+    },
+    {
+      "name" : "Turtles All the Way Down",
+      "genre" : "YA",
+      "publisher" : "Dutton"
+    }
+  ]
+}
+
+nested1.Json
+{
+  "name" : "Jay Asher",
+  "books" : [
+    {
+      "name" : "Thirteen reasons why",
+      "genre" : "YA",
+      "publisher" : "Penguin"
+    }
+  ]
+}
+
+curl -XPOST 'localhost:9200/authors/author/1?pretty' -H 'Content-Type: application/json' -d @nested.json
+curl -XPOST 'localhost:9200/authors/author/2?pretty' -H 'Content-Type: application/json' -d @nested1.json
+
+curl -XGET 'localhost:9200/authors/author/_search?pretty' -H 'Content-Type: application/json' -d'
+{
+ "query" : {
+   "bool" : {
+     "must" : [
+      {  "match" : { "books.genre" : "YA" } },
+      {  "match" : { "books.publisher" : "Penguin" } }
+     ]
+   }
+ }
+}
+'
+
+
+Creating Books as nested object
+
+curl -XDELETE 'localhost:9200/authors?pretty'
+curl -XPUT 'localhost:9200/authors?pretty' -H 'Content-Type: application/json' -d @nestedmappings.json
+
+nestedmappings.json
+{
+ "mappings" :  {
+       "properties" : {
+          "books" : {
+            "type" : "nested",
+            "properties": {
+            "name": {
+              "type": "text"
+            },
+            "genre": {
+              "type": "text"
+            },
+            "publisher": {
+              "type": "text"
+            }
+          }
+          }
+       }
+ }
+}
+
+curl -H 'Content-Type: application/json' -XPOST "localhost:9200/authors/_bulk?pretty&refresh" --data-binary @nested.json
+curl -H 'Content-Type: application/json' -XPOST "localhost:9200/authors/_bulk?pretty&refresh" --data-binary @nested1.json
+
+curl -XGET 'localhost:9200/authors/_search?pretty' -H 'Content-Type: application/json' -d'
+{
+ "query" : {
+   "bool" : {
+     "must" : [
+     {
+       "match" : { "name" : "John Green" }
+       },
+       {
+         "nested" : {
+            "path" : "books",
+             "query" : {
+             "bool" : {
+               "must" : [
+                {  "match" : { "books.genre" : "YA" } },
+                {  "match" : { "books.publisher" : "Penguin" } }  ----> Change to Dutton to get hits
+               ]
+             }
+             }
+         }
+       }
+     ]
+   }
+ }
+}
+'
+
+***************************************************************************************************************************************
+Analyzers --->  tokenizer & token filters
+***************************************************************************************************************************************
+
+https://medium.com/@mallikarjuna91/what-is-tokenizer-analyzer-and-filter-in-elasticsearch-317d4ec69ecc
+
+***************************************************************************************************************************************
+N-Gram Tokenizer  ---->
+
+https://medium.com/@ashishstiwari/what-should-be-the-value-of-max-gram-and-min-gram-in-elasticsearch-f091404c9a14
+http://man.hubwiz.com/docset/ElasticSearch.docset/Contents/Resources/Documents/www.elastic.co/guide/en/elasticsearch/reference/current/analysis-ngram-tokenizer.html
+
+***************************************************************************************************************************************
+Geo Spatial Data
+***************************************************************************************************************************************
+Latitude and Longitude can be written in multiple ways
+
+Object {lat,lon}
+String "lat,lon"
+Geohash "zdfkhgs345jk3465"
+Array [lon,lat]  ------------> Watch out order "long" is first
+
+geo.Json
+{
+ "mappings" :  {
+   "properties" : {
+       "location" : {
+          "type" : "geo_point"
+       }
+     }
+ }
+}
+
+curl -XPUT 'localhost:9200/restaurants_locations?pretty' -H 'Content-Type: application/json' -d @geo.json
+
+curl -XPOST 'localhost:9200/restaurants_locations/_doc/1?pretty' -H 'Content-Type: application/json'  -d'
+{
+    "name" : "Burger King",
+     "location" : {
+       "lat" : 12.895,
+       "lon" : 77.435
+     }
+}
+'
+
+curl -XPOST 'localhost:9200/restaurants_locations/_doc/2?pretty' -H 'Content-Type: application/json'  -d'
+{
+    "name" : "KFC Phoenix",
+     "location" : "13.456,77.675"
+}
+'
+
+Geo hash --->  "location" : "askdfh564jhkjg"
+Array --->  "location" : [ 13.456 , 77.675 ]
+
+***************************************************************************************************************************************
+
+Data
+curl -XPOST 'localhost:9200/restaurants_locations/_bulk?pretty' -H 'Content-Type: application/json' -d'
+{"index" : { } }
+{"name": "Brurger King" , "location" : "13.456,77.675"}
+{"index" : { } }
+{"name": "Mc Donalds Phoenix" , "location" : "12.456,44.675"}
+{"index" : { } }
+{"name": "KFC Phoenix" , "location" : "45.456,177.675"}
+{"index" : { } }
+{"name": "Chiptole Phoenix" , "location" : "44.456,127.675"}
+'
+
+Query1 ----> search within 100 miles of specified location
+
+curl -XGET 'localhost:9200/restaurants_locations/_search?pretty' -H 'Content-Type: application/json' -d'
+{
+ "query" : {
+   "bool" : {
+      "should" : {
+         "match_all" : {}
+      },
+      "filter" : {
+         "geo_distance" : {
+            "distance" : "500km", --------> You will get bruger king
+            "location" : {
+                "lat" : 11.895,
+                "lon" : 75.435
+            }
+         }
+      }
+   }
+ }
+}
+'
+
+Query2 ----> Search nearby restaurants for specific location
+
+curl -XGET 'localhost:9200/restaurants_locations/_search?pretty' -H 'Content-Type: application/json' -d'
+{
+ "sort" : [
+   "_score",
+   {
+   "_geo_distance" : {
+      "location" : {
+          "lat" : 11.895,
+          "lon" : 75.435
+      },
+      "order" : "asc",
+      "unit" : "km",
+      "distance_type" : "plane"
+   }
+   }
+ ]
+}
+'
+
+**************************************************************************************************************************************
+**************************************************************************************************************************************
+
+curl -XDELETE 'localhost:9200/refcd?pretty'
+curl -XPUT 'localhost:9200/refcd?pretty' -H 'Content-Type: application/json' -d @RefCd.json
+
+curl -XPOST 'localhost:9200/refcd/_bulk?pretty' -H 'Content-Type: application/json' -d'
+{"index" : { } }
+{ "refcd" : "CHG", "refid" : { "reftypename" : "CityCd", "reftypedesc" : "City Code" }, "refcddesc" : { "desc" : "Chicago City", "location" : "13.456,77.675" }, "locale" : "en_US", "contextcd" : "Sabre", "createdby" : "asrir5", "lastmodifiedby" : "asrir5", "active" : "Y", "score" : "4" }
+{"index" : { } }
+{"refcd":"PHX","refid":{"reftypename":"CityCd","reftypedesc":"City Code"},"refcddesc":{"desc":"Phoenix City","location":"12.456,72.675"},"locale":"en_US","contextcd":"Sabre","createdby":"asrir5","lastmodifiedby":"asrir5","active":"Y","score":"4"}
+{"index" : { } }
+{"refcd":"WHL","refid":{"reftypename":"CityCd","reftypedesc":"City Code"},"refcddesc":{"desc":"Wheeling City","location":"12.456,72.675"},"locale":"en_US","contextcd":"Sabre","createdby":"asrir5","lastmodifiedby":"asrir5","active":"Y","score":"4"}
+'
+
+curl -XGET  localhost:9200/refcd/_doc/bead7_documentID_cd23cf/_termvectors?fields=refcddesc.desc
+
+
+curl -XGET "localhost:9200/refcd/_search?pretty" -H 'Content-Type: application/json' -d'
+{
+ "query" : {
+     "match" : {
+       "refcd" :  "PHX"
+     }
+ }
+}
+'
+
+curl -XGET "localhost:9200/refcd/_search?pretty" -H 'Content-Type: application/json' -d'
+{
+ "query" : {
+     "match" : {
+       "refid.reftypename" :  "CityCd"
+     }
+ }
+}
+'
+
+curl -XGET "localhost:9200/refcd/_search?pretty" -H 'Content-Type: application/json' -d'
+{
+  "query": {
+    "match": {
+      "refcddesc.desc": {
+        "query": "city"
+      }
+    }
+  }
+}
+'
+
+curl -XGET  "localhost:9200/refcd/_termvectors/Q4D7_XIBsjbSbYH2dD1B?fields=refcddesc.desc"

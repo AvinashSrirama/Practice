@@ -1,0 +1,549 @@
+Node - Is single server, performs Indexing, allows search & has unique id and name
+Cluster - Collection of nodes, holds entire indexed data, has unique name & nodes join cluster using cluster names
+Document - basic unit of info to be indexed, expressed in json, resides within an index
+Index - collection of similar documents, indentified by name, any number of indices in a cluster * different indices for diff logical groupings
+Shard & Replicas - breaking index and storing in multiple nodes is called sharding. Search will happen in parallel.
+
+1) An index can be split into multiple shards, a shard can be replicated 0 or more times, an index in elastic search has 5 shards and 1 replica by default.
+2) Specifying number of shards is static can only be done during index creation time.
+3) Specifying number of replicas is dynamic, can be changed after index is created and populated.
+
+
+Start elastic search with custom cluster and node names
+./bin/elasticsearch -Ecluster.name=elasticsearch_cluster -Enode.name=first_node
+
+HealthCheck Url’s
+localhost:9200
+localhost:9200/_cat/health?v&pretty
+localhost:9200/_cat/nodes?v&pretty
+
+curl -XGET  'localhost:9200/_cat/health?v&pretty'
+curl -XGET  'localhost:9200/_cat/nodes?v&pretty'
+
+Shards - Split the index across multiple nodes in cluster.Each individual node contain one shard of the index. Every node will have subset of your data.
+
+To List indices present in cluster
+curl -XGET  'localhost:9200/_cat/indices?v&pretty'
+
+***************************************************************************************************************************************
+Create Index
+***************************************************************************************************************************************
+PUT: create and update resources, POST: only to update resources
+
+curl -XPUT 'localhost:9200/products?&pretty'
+{
+  "acknowledged" : true,
+  "shards_acknowledged" : true,
+  "index" : "products"
+}
+
+curl -XGET  'localhost:9200/_cat/indices?v&pretty'
+health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+yellow open   products HuwD3V6hR6KVy2BN2I6MzQ   1   1          0            0       208b           208b
+
+NOTE: State is yellow as there is not replica. Docs count is “0” as there are no documents associated to index.
+
+***************************************************************************************************************************************
+Create Documents
+***************************************************************************************************************************************
+mobiles  - is doctype/category within products index
+1 - is the id for document
+
+curl -XPUT 'localhost:9200/products/mobiles/2?pretty' -H 'Content-Type: application/json' -d '
+{
+  "name" : "iPhone 11",
+  "camera" : "12MP",
+  "storage" : "256GB",
+  "display" : "4.7inch",
+  "battery" : "1,960mAh",
+  "reviews" : ["Incredibly happy after having used it for one week", "Best iPhone so far", "very expensive compared to Android"]
+}
+'
+Response:
+{
+  "_index" : "products",
+  "_type" : "mobiles",
+  "_id" : "1",
+  "_version" : 1,  ------------------> Version is 1 for creation
+  "result" : "created",
+  "_shards" : {
+    "total" : 2,
+    "successful" : 1,
+    "failed" : 0
+  },
+  "_seq_no" : 0,
+  "_primary_term" : 1
+}
+
+curl -XPUT 'localhost:9200/products/laptops/1?pretty' -H 'Content-Type: application/json' -d '
+{
+  "name" : "MacBook Pro",
+  "storage" : "500GB",
+  "Ram" : "8GB",
+  "display" : "13inch",
+  "os" : "E1 Capitan",
+  "reviews" : ["A little bulky but a great Mac laptop", "The larger storage capacity is great"]
+}
+'
+***************************************************************************************************************************************
+Retrieve Documents
+***************************************************************************************************************************************
+curl -XGET 'localhost:9200/products/mobiles/1?pretty'
+
+{
+  "_index" : "products",
+  "_type" : "mobiles",
+  "_id" : "1",
+  "_version" : 1,
+  "_seq_no" : 0,
+  "_primary_term" : 1,
+  "found" : true,
+  "_source" : {
+    "name" : "iPhone 11",
+    "camera" : "12MP",
+    "storage" : "256GB",
+    "display" : "4.7inch",
+    "battery" : "1,960mAh",
+    "reviews" : [
+      "Incredibly happy after having used it for one week",
+      "Best iPhone so far",
+      "very expensive compared to Android"
+    ]
+  }
+}
+
+curl -XGET 'localhost:9200/products/mobiles/1?pretty&_source=false'
+curl -XGET 'localhost:9200/products/mobiles/1?pretty&_source=name,camera'
+
+***************************************************************************************************************************************
+Update documents
+***************************************************************************************************************************************
+
+curl -XPUT 'localhost:9200/products/mobiles/1?pretty' -H 'Content-Type: application/json' -d '
+{
+  "name" : "iPhone 11",
+  "camera" : "12MP",
+  "storage" : "256GB",
+  "display" : "4.7inch",
+  "battery" : "3000mAh",
+  "reviews" : ["Incredibly happy after having used it for one week", "Best iPhone so far", "very expensive compared to Android"]
+}
+'
+
+Response
+
+{
+  "_index" : "products",
+  "_type" : "mobiles",
+  "_id" : "1",
+  "_version" : 2,   -------------------> version is 2 as we have updated
+  "result" : "updated",  -------------->  Updated
+  "_shards" : {
+    "total" : 2,
+    "successful" : 1,
+    "failed" : 0
+  },
+  "_seq_no" : 2,
+  "_primary_term" : 1
+}
+
+***************************************************************************************************************************************
+Partial Update  - can be made by POST request adding _update to url
+***************************************************************************************************************************************
+curl -XPOST 'localhost:9200/products/mobiles/1/_update?pretty' -H 'Content-Type: application/json' -d '
+{
+   "doc" : {
+     "color" : "black",
+     "reviews" : ["Incredibly happy after having used it for one week", "Best iPhone so far", "very expensive compared to Android"]
+     }
+}
+'
+Response
+
+{
+  "_index" : "products",
+  "_type" : "mobiles",
+  "_id" : "1",
+  "_version" : 3,  ----------------> version is changes
+  "result" : "updated", -----------> Updated
+  "_shards" : {
+    "total" : 2,
+    "successful" : 1,
+    "failed" : 0
+  },
+  "_seq_no" : 3,
+  "_primary_term" : 1
+}
+
+Script can be used to update values
+{
+"script" : "ctx._source.size +=1"
+}
+
+***************************************************************************************************************************************
+Delete Document
+***************************************************************************************************************************************
+curl -XDELETE 'localhost:9200/products/mobiles/2?pretty'
+
+{
+  "_index" : "products",
+  "_type" : "mobiles",
+  "_id" : "2",
+  "_version" : 2,
+  "result" : "deleted",   ---------> Deleted
+  "_shards" : {
+    "total" : 2,
+    "successful" : 1,
+    "failed" : 0
+  },
+  "_seq_no" : 4,
+  "_primary_term" : 1
+}
+
+***************************************************************************************************************************************
+Bulk Retrieval  - Use _mget
+***************************************************************************************************************************************
+curl -XGET 'localhost:9200/_mget?pretty' -H 'Content-Type: application/json'  -d'
+{
+    "docs" : [
+           {
+               "_index" : "products",
+               "_type" : "mobiles",
+               "_id" : "1"
+           },
+           {
+               "_index" : "products"
+               "_type" : "mobiles",
+               "_id" : "2"
+           }
+    ]
+}
+'
+
+curl -XGET 'localhost:9200/products/mobiles/_mget?pretty' -H 'Content-Type: application/json'  -d'
+{
+    "docs" : [
+           {
+
+               "_id" : "1"
+           },
+           {
+
+               "_id" : "2"
+           }
+    ]
+}
+'
+
+***************************************************************************************************************************************
+Bulk Changes  - Use _bulk
+***************************************************************************************************************************************
+curl -XPOST 'localhost:9200/_bulk?pretty' -H 'Content-Type: application/json' -d'
+{"index" : { "_index" : "products", "_type" : "laptops", "_id":"2"} }
+{"name": "MackBook Pro" , "screensize" : "15inch", "color": "black"}
+{"delete" : { "_id" :"2"}}
+'
+
+curl -XPOST 'localhost:9200/products/mobiles/_bulk?pretty' -H 'Content-Type: application/json' -d'
+{"index" : { } }
+{"name": "MackBook Pro" , "screensize" : "15inch", "color": "black"}
+{"delete" : { "_id" :"2"}}
+{"create" : { "_id" : "5"}}
+{"name": "MackBook Pro" , "screensize" : "15inch", "color": "black"}
+{"update" : { "_id" : "2"}}
+{ "doc" :{ "color" : "white"}}
+'
+
+***************************************************************************************************************************************
+Bulk Changes  - Using Json (https://goo.gl/VCeMfi)
+***************************************************************************************************************************************
+
+curl -H "Content-Type: application/x-ndjson" -XPOST "localhost:9200/customers/personal/_bulk?pretty&refresh" --data-binary @"customers_full.json"
+Json
+{"index" : { } }
+{"name": "Jacob" , "age" : "24"}
+{"index" : { } }
+{"name": "Linda" , "age" : "32"}
+
+***************************************************************************************************************************************
+Search using   Query Params
+***************************************************************************************************************************************
+
+curl -XGET "localhost:9200/customers/_search?q=wyoming&pretty"
+
+for below querys revelance score ie max_score will be null as we are sorting and relevance score is no sense.
+curl -XGET "localhost:9200/customers/_search?q=wyoming&sort=age:asc&pretty"
+curl -XGET "localhost:9200/customers/_search?q=state:kentucky&sort=age:asc&pretty"
+
+curl -XGET "localhost:9200/customers/_search?q=state:kentucky&from=10&size=2&pretty"
+curl -XGET "localhost:9200/customers/_search?q=state:kentucky&explain&pretty"
+
+Response:
+{
+  "took" : 128, ----------------> time in ms
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 19,
+      "relation" : "eq"
+    },
+    "max_score" : 6.5099273, ----------------> releveance score
+    "hits" : [
+      {
+        "_index" : "customers",
+        "_type" : "personal",
+        "_id" : "GONnqnIB0xfBjWtxDqqb",
+        "_score" : 6.5099273,
+        "_source" : {
+          "name" : "Rosanne Mosley",
+          "age" : 72,
+          "gender" : "female",
+          "email" : "rosannemosley@talkalot.com",
+          "phone" : "+1 (875) 585-2859",
+          "street" : "360 Brooklyn Avenue",
+          "city" : "Wyoming",
+          "state" : "North Carolina, 8725"
+        }
+      },
+
+***************************************************************************************************************************************
+Search using Request body
+***************************************************************************************************************************************
+
+curl -H "Content-Type: application/x-ndjson" -XGET "localhost:9200/customers/_search?pretty" -d'
+{
+ "query" : { "match_all" : {}},
+ "sort" : { "age" : { "order" : "desc" } },
+ "from" : 5,
+ "size" :2
+}
+'
+
+For match all relevance score will be 1 for all Documents
+
+Search multiple indices
+curl -H "Content-Type: application/x-ndjson" -XGET "localhost:9200/customers,products/_search?pretty" -d'
+{
+ "query" : { "match_all" : {}},
+ "from" : 5,
+ "size" :2
+}
+'
+***************************************************************************************************************************************
+Search using term
+***************************************************************************************************************************************
+Term should match exact field.here it is name
+curl -H "Content-Type: application/x-ndjson" -XGET "localhost:9200/customers/_search?pretty" -d'
+{
+ "_source" :false,  -------------------> To make response faster across network as it will restrict unwanted data
+ "query" : {
+     "term" : { "name" : "gates"}
+ }
+}
+'
+
+curl -H "Content-Type: application/x-ndjson" -XGET "localhost:9200/customers/_search?pretty" -d'
+{
+ "_source" : [ "st*", "*n*" ],  -------------> Will return all fields with letters "st" & "n"
+ "query" : {
+     "term" : { "name" : "gates"}
+ }
+}
+'
+
+curl -H "Content-Type: application/x-ndjson" -XGET "localhost:9200/customers/_search?pretty" -d'
+{
+ "_source" : {
+     "includes" : [ "st*", "*n*" ] ,
+     "excludes" : [ "der" ]
+ },
+ "query" : {
+     "term" : { "name" : "gates"}
+ }
+}
+'
+
+***************************************************************************************************************************************
+Search using Match
+***************************************************************************************************************************************
+Match is  not an exact term match. More as like.
+By deafult operator is "OR" for match.
+"match_phrase" is for exact match. it is matching sentences/quotes
+"match_phrase_prefix" is for fields starting with prefix
+
+curl -H "Content-Type: application/x-ndjson" -XGET "localhost:9200/customers/_search?pretty" -d'
+{
+ "query" : {
+     "match" : {
+       "name" : {
+            "query" : "frank norris",
+            "operator" : "or"      -------> search documents for name as frank or norris in name field
+       }
+     }
+ }
+}
+'
+
+By deafult operator is "OR" for match.
+curl -H "Content-Type: application/x-ndjson" -XGET "localhost:9200/customers/_search?pretty" -d'
+{
+ "query" : {
+     "match" : {
+       "street" :  "Tompkins place"
+     }
+ }
+}
+'
+
+curl -H "Content-Type: application/x-ndjson" -XGET "localhost:9200/customers/_search?pretty" -d'
+{
+ "query" : {
+     "match_phrase_prefix" : {
+       "name" :  "ma"
+     }
+ }
+}
+'
+
+***************************************************************************************************************************************
+Search using Boolean - Must, Should, Must_not
+***************************************************************************************************************************************
+Must - compulsary
+Should - maybe
+Must_not - exclude and show results
+
+curl -H "Content-Type: application/x-ndjson" -XGET "localhost:9200/customers/_search?pretty" -d'
+{
+ "query" : {
+     "bool" : {
+        "must" : [
+           { "match" : { "street" : "ditmas" } },
+           { "match" : { "street" : "avenue" } }
+        ]
+     }
+ }
+}
+'
+
+***************************************************************************************************************************************
+Filters - relevance score will be same for all results
+***************************************************************************************************************************************
+curl -H "Content-Type: application/x-ndjson" -XGET "localhost:9200/customers/_search?pretty" -d'
+{
+ "query" : {
+     "bool" : {
+        "must" : { "match_all" : {} },
+        "filter" : [
+             { "term" : { "gender" : "female" } },
+             { "range" : {  "age" : { "gte" : 20, "lte" : 30 } } }
+           ]
+        }
+     }
+}
+'
+
+
+***************************************************************************************************************************************
+Aggregations
+***************************************************************************************************************************************
+avg - average will be calculated
+stats - statics will be calculated
+cardinality - no.of unique values
+
+curl -H "Content-Type: application/x-ndjson" -XPOST "localhost:9200/customers/_search?pretty" -d'
+{
+ "size" : 0,  ----> no documents will be returned , 1 -> sample document will be returned
+   "aggs" : {
+      "avg_age" : {  ----> Column name
+         "avg" : { "field" : "age" }
+      }
+   }
+}
+'
+
+Avg Age across Minnesota
+
+curl -H "Content-Type: application/x-ndjson" -XPOST "localhost:9200/customers/_search?pretty" -d'
+{
+ "size" : 0,
+ "query" : {
+     "bool" : {
+        "filter" : {
+           "match" : { "state" : "minnesota" }
+          }
+        }
+     },
+   "aggs" : {
+      "avg_age" : {
+         "avg" : { "field" : "age" }
+      }
+   }
+}
+'
+
+
+
+Enable Cardinality for filed data  - This is to get no.of unique value for text based search like below
+curl -H "Content-Type: application/x-ndjson" -XPUT "localhost:9200/customers/_mapping?pretty" -d'
+{
+  "properties" : {
+    "gender" : {
+      "type" : "text",
+       "fielddata" : true
+    }
+  }
+}
+'
+
+curl -H "Content-Type: application/x-ndjson" -XPOST "localhost:9200/customers/_search?pretty" -d'
+{
+ "size" : 0,
+   "aggs" : {
+      "gender_count" : {
+         "cardinality" : { "field" : "gender" }
+      }
+   }
+}
+'
+
+***************************************************************************************************************************************
+Bucketing - Is grouping  - each bucket satisfies some criteria
+***************************************************************************************************************************************
+curl -H "Content-Type: application/x-ndjson" -XPOST "localhost:9200/customers/_search?pretty" -d'
+{
+ "size" : 0,
+   "aggs" : {
+      "gender_bucket" : {
+         "terms" : {
+             "field" : "gender"
+          }
+      }
+   }
+}
+'
+
+Giving Group names
+curl -H "Content-Type: application/x-ndjson" -XPOST "localhost:9200/customers/_search?pretty" -d'
+{
+ "size" : 0,
+   "aggs" : {
+      "age_ranges" : {
+         "range" : {
+             "field" : "age",
+             "keyed" : true,
+              "ranges" : [
+                 { "key" : "young", "to" : 30 },
+                 { "key" : "Middle", "from" : 30, "to" : 50 },
+                 { "key" : "Senior", "from" : 50, "to" : 80 }
+              ]
+          }
+      }
+   }
+}
+'
